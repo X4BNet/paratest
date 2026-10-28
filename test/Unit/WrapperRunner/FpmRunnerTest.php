@@ -112,7 +112,7 @@ final class FpmRunnerTest extends TestCase
     {
         $process = $this->runParaTest('fpm', 'fpm_mixed', ['--processes=1']);
         self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
-        self::assertStringContainsString('OK (2 tests, 2 assertions)', $process->getOutput());
+        self::assertStringContainsString('OK (3 tests, 3 assertions)', $process->getOutput());
     }
 
     /** PCOV must record execution from shared OPcache and merge the worker reports. */

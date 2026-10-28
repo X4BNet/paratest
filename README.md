@@ -179,7 +179,9 @@ The private pool and its request contexts are accessible only to the run's user.
 
 Files containing PHPUnit process-isolated tests and PHPT files automatically
 use the CLI adapter, because PHPUnit's child runner hardcodes `PHP_BINARY`.
-`--process-isolation` therefore selects CLI workers for the whole run. Worker
+`--process-isolation` therefore selects CLI workers for the whole run.
+Mark other CLI-dependent tests with `#[PHPUnit\Framework\Attributes\Group('paratest-cli')]`
+to select CLI for their file without adding PHPUnit process isolation. Worker
 limits, tokens, scheduling and merged reports are retained across both adapters.
 
 Other tests execute under `PHP_SAPI=fpm-fcgi`, and `PHP_BINARY` names PHP-FPM.

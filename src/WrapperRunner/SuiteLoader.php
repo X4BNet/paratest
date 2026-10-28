@@ -40,6 +40,7 @@ use function array_values;
 use function assert;
 use function ceil;
 use function count;
+use function in_array;
 use function is_int;
 use function is_string;
 use function mt_srand;
@@ -141,7 +142,7 @@ final readonly class SuiteLoader
         $cliTests = [];
         foreach ($this->loadFiles($testSuite) as $file => $test) {
             $files[$file] = null;
-            if ($test instanceof PhptTestCase || $test->runsTestInSeparateProcess() || $this->options->configuration->processIsolation()) {
+            if ($test instanceof PhptTestCase || $test->runsTestInSeparateProcess() || in_array('paratest-cli', $test->groups(), true) || $this->options->configuration->processIsolation()) {
                 $cliTests[$file] = true;
             }
 

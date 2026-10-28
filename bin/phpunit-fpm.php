@@ -21,6 +21,13 @@ declare(strict_types=1);
     define('STDIN', $input);
     define('STDOUT', fopen('php://output', 'wb'));
     define('STDERR', fopen('php://stderr', 'wb'));
+    // Report engine fatals before an application's shutdown handler renders a web error.
+    register_shutdown_function(static function (): void {
+        $error = error_get_last();
+        if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+            error_log(sprintf('ParaTest FPM fatal: %s in %s:%d', $error['message'], $error['file'], $error['line']));
+        }
+    });
     $wrapper = __DIR__ . '/phpunit-wrapper.php';
     $_SERVER['SCRIPT_FILENAME'] = $wrapper;
     $_SERVER['argv'] = $GLOBALS['argv'] = [$wrapper, ...$context['arguments']];
