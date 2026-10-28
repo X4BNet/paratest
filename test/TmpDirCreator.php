@@ -17,7 +17,9 @@ final readonly class TmpDirCreator
     /** @return non-empty-string */
     public function create(): string
     {
-        $tmpDir = __DIR__ . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'token_' . (string) getenv('TEST_TOKEN');
+        $configured = getenv('PARATEST_TEST_TMP_DIR');
+        $base       = $configured === false || $configured === '' ? __DIR__ . DIRECTORY_SEPARATOR . 'tmp' : $configured;
+        $tmpDir     = $base . DIRECTORY_SEPARATOR . 'token_' . (string) getenv('TEST_TOKEN');
 
         $glob = glob($tmpDir . DIRECTORY_SEPARATOR . '*');
         Assert::assertNotFalse($glob);

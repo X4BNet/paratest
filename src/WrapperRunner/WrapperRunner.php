@@ -42,6 +42,7 @@ use function assert;
 use function bin2hex;
 use function count;
 use function dirname;
+use function explode;
 use function file_get_contents;
 use function filesize;
 use function implode;
@@ -101,6 +102,11 @@ final class WrapperRunner implements RunnerInterface
     private CodeCoverageFilterRegistry $codeCoverageFilterRegistry;
     /** @var non-empty-string */
     private string $runTmpDir;
+    private ?FpmPool $fpmPool = null;
+    /** @var array<non-empty-string, true> */
+    private array $cliTests = [];
+    /** @var array<positive-int, bool> */
+    private array $fpmWorkers = [];
 
     public function __construct(
         private readonly Options $options,
@@ -141,15 +147,27 @@ final class WrapperRunner implements RunnerInterface
         );
         $result      = TestResultFacade::result();
 
-        $this->pending = $suiteLoader->tests;
+        $this->pending  = $suiteLoader->tests;
+        $this->cliTests = $suiteLoader->cliTests;
         $this->printer->setTestCount($suiteLoader->testCount);
         $this->printer->start();
         $this->runTmpDir = $this->createRunTmpDir();
-        $this->startWorkers();
-        $this->assignAllPendingTests();
-        $this->waitForAllToFinish();
+        try {
+            if ($this->options->workerAdapter === 'fpm' && array_filter($this->pending, fn (string $test): bool => ! isset($this->cliTests[explode("\0", $test, 2)[0]])) !== []) {
+                $this->fpmPool = new FpmPool($this->options, $this->runTmpDir);
+                $this->fpmPool->start();
+            }
 
-        return $this->complete($result);
+            $this->startWorkers();
+            $this->assignAllPendingTests();
+            $this->waitForAllToFinish();
+            $this->fpmPool?->stop();
+
+            return $this->complete($result);
+        } finally {
+            $this->fpmPool?->stop();
+            $this->workers = [];
+        }
     }
 
     /**
@@ -200,7 +218,7 @@ final class WrapperRunner implements RunnerInterface
 
                 if ($batchSize !== 0 && $this->batches[$token] === $batchSize) {
                     $this->destroyWorker($token);
-                    $worker = $this->startWorker($token);
+                    $worker = $this->startWorker($token, $this->fpmWorkers[$token]);
                 }
 
                 if (
@@ -209,6 +227,12 @@ final class WrapperRunner implements RunnerInterface
                 ) {
                     $this->pending = [];
                 } elseif (($pending = array_shift($this->pending)) !== null) {
+                    $useFpm = $this->fpmPool !== null && ! isset($this->cliTests[explode("\0", $pending, 2)[0]]);
+                    if ($this->fpmWorkers[$token] !== $useFpm) {
+                        $this->destroyWorker($token);
+                        $worker = $this->startWorker($token, $useFpm);
+                    }
+
                     $worker->assign($pending);
                     $this->batches[$token]++;
                 }
@@ -267,14 +291,17 @@ final class WrapperRunner implements RunnerInterface
     }
 
     /** @param positive-int $token */
-    private function startWorker(int $token): WrapperWorker
+    private function startWorker(int $token, ?bool $useFpm = null): WrapperWorker
     {
-        $worker = new WrapperWorker(
+        $useFpm                 ??= $this->fpmPool !== null;
+        $this->fpmWorkers[$token] = $useFpm;
+        $worker                   = new WrapperWorker(
             $this->output,
             $this->options,
             $this->parameters,
             $token,
             $this->runTmpDir,
+            $useFpm ? $this->fpmPool : null,
         );
         $worker->start();
         $this->batches[$token] = 0;

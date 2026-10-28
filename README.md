@@ -155,3 +155,40 @@ and working when running tests sequentially in order for the helper binary to co
 # For Contributors: testing ParaTest itself
 
 Before creating a Pull Request be sure to run all the necessary checks with `make` command.
+
+### FPM worker adapter
+
+The default `--worker-adapter=process` starts the existing PHP CLI workers.
+Use `--worker-adapter=fpm` to run persistent PHPUnit wrappers through actual
+FastCGI requests to an isolated, managed PHP-FPM pool:
+
+```sh
+vendor/bin/paratest --worker-adapter=fpm --processes=8
+# Optional when FPM is not beside the CLI installation or on PATH:
+vendor/bin/paratest --worker-adapter=fpm --fpm-binary=/usr/local/sbin/php-fpm
+```
+
+The coordinator manages pool startup, shutdown and worker recycling. Workers
+share the pool's OPcache; preload and OPcache's disk file cache are disabled.
+No external FPM service, web server, native bridge, or preload file is required.
+Use a matching CLI/FPM build with the same extensions. The pool inherits the
+CLI ini file, `PHP_INI_SCAN_DIR`, environment, and `--passthru-php` settings.
+Use `-c`, `-n`, and `-d` PHP settings with this adapter; CLI execution flags such
+as `-r` do not apply to FPM. A short local `--tmp-dir` is required for Unix sockets.
+The private pool and its request contexts are accessible only to the run's user.
+
+Files containing PHPUnit process-isolated tests and PHPT files automatically
+use the CLI adapter, because PHPUnit's child runner hardcodes `PHP_BINARY`.
+`--process-isolation` therefore selects CLI workers for the whole run. Worker
+limits, tokens, scheduling and merged reports are retained across both adapters.
+
+Other tests execute under `PHP_SAPI=fpm-fcgi`, and `PHP_BINARY` names PHP-FPM.
+For subprocesses use Symfony's `PhpExecutableFinder` (the adapter exports the
+coordinator's CLI executable through `PHP_PEAR_PHP_BIN`). SAPI-dependent headers,
+sessions and authorization may require changes to a project's test harness.
+PCOV/Xdebug coverage requires the corresponding FPM extension and normal
+coverage configuration; this adapter does not enable a coverage driver itself.
+FPM support requires Unix-domain socket support and a PHP-FPM executable.
+Integration tests use `PARATEST_FPM_BINARY` to select a nonstandard test binary.
+
+Set `PARATEST_TEST_TMP_DIR` to keep the test suite's temporary files outside the checkout.

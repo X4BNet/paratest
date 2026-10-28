@@ -6,7 +6,7 @@ use ParaTest\WrapperRunner\ApplicationForWrapperWorker;
 use ParaTest\WrapperRunner\WrapperWorker;
 
 (static function (): void {
-    $getopt = getopt('', [
+    $getopt = $GLOBALS['paratestFpmOptions'] ?? getopt('', [
         'status-file:',
         'progress-file:',
         'unexpected-output-file:',

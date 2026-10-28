@@ -7,11 +7,10 @@ namespace ParaTest\WrapperRunner;
 use ParaTest\Options;
 use SplFileInfo;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Process\InputStream;
-use Symfony\Component\Process\Process;
 use Throwable;
 
 use function array_map;
+use function array_values;
 use function assert;
 use function clearstatcache;
 use function file_get_contents;
@@ -42,10 +41,9 @@ final class WrapperWorker
     public readonly SplFileInfo $testdoxFile;
 
     private ?string $currentlyExecuting = null;
-    private Process $process;
+    private WorkerAdapter $adapter;
     private int $inExecution = 0;
-    private InputStream $input;
-    private int $exitCode = -1;
+    private int $exitCode    = -1;
 
     /**
      * @param non-empty-string[] $parameters
@@ -57,6 +55,7 @@ final class WrapperWorker
         array $parameters,
         private readonly int $token,
         string $tmpDir,
+        ?FpmPool $fpmPool = null,
     ) {
         $commonTmpFilePath = sprintf(
             '%s%sworker_%02s_stdout_%s_',
@@ -162,25 +161,19 @@ final class WrapperWorker
             ));
         }
 
-        $this->input   = new InputStream();
-        $this->process = new Process(
-            $parameters,
-            $options->cwd,
-            $options->fillEnvWithTokens($token),
-            $this->input,
-            null,
-        );
+        $this->adapter = $fpmPool === null
+            ? new ProcessWorkerAdapter($options, array_values($parameters), $token)
+            : new FpmWorkerAdapter($fpmPool, $options, array_values($parameters), $token, $tmpDir);
     }
 
     public function start(): void
     {
-        $this->process->start();
+        $this->adapter->start();
     }
 
     public function getWorkerCrashedException(?Throwable $previousException = null): WorkerCrashedException
     {
-        return WorkerCrashedException::fromProcess(
-            $this->process,
+        return $this->adapter->getWorkerCrashedException(
             $this->currentlyExecuting ?? 'N.A.',
             $previousException,
         );
@@ -194,7 +187,7 @@ final class WrapperWorker
             $this->output->write("Process {$this->token} executing: {$test}\n");
         }
 
-        $this->input->write($test . "\n");
+        $this->adapter->write($test . "\n");
         $this->currentlyExecuting = $test;
         ++$this->inExecution;
     }
@@ -206,7 +199,7 @@ final class WrapperWorker
 
     public function stop(): void
     {
-        $this->input->write(self::COMMAND_EXIT);
+        $this->adapter->write(self::COMMAND_EXIT);
     }
 
     public function isFree(): bool
@@ -232,7 +225,7 @@ final class WrapperWorker
 
     public function isRunning(): bool
     {
-        return $this->process->isRunning();
+        return $this->adapter->isRunning();
     }
 
     public function hasExecutedTests(): bool

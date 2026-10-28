@@ -28,6 +28,7 @@ use function dirname;
 use function escapeshellarg;
 use function file_exists;
 use function implode;
+use function in_array;
 use function is_array;
 use function is_bool;
 use function is_numeric;
@@ -137,6 +138,8 @@ final readonly class Options
         public int $totalShards,
         public ShardDistribution $shardDistribution,
         public int $shardDistributionSeed,
+        public string $workerAdapter = 'process',
+        public ?string $fpmBinary = null,
     ) {
         $this->needsTeamcity = $configuration->outputIsTeamCity() || $configuration->hasLogfileTeamcity();
         $this->needsTestdox  = $configuration->outputIsTestDox() || $configuration->hasLogfileTestdoxText() || $configuration->hasLogfileTestdoxHtml();
@@ -146,6 +149,17 @@ final readonly class Options
     public static function fromConsoleInput(InputInterface $input, string $cwd): self
     {
         $options = $input->getOptions();
+
+        $workerAdapter = $options['worker-adapter'];
+        $fpmBinary     = $options['fpm-binary'];
+        unset($options['worker-adapter'], $options['fpm-binary']);
+        if (! in_array($workerAdapter, ['process', 'fpm'], true)) {
+            throw new InvalidArgumentException('Worker adapter must be process or fpm.');
+        }
+
+        if ($fpmBinary !== null && ($workerAdapter !== 'fpm' || ! is_string($fpmBinary) || $fpmBinary === '')) {
+            throw new InvalidArgumentException('--fpm-binary requires --worker-adapter=fpm and an executable path.');
+        }
 
         $maxBatchSize = (int) $options['max-batch-size'];
         unset($options['max-batch-size']);
@@ -173,6 +187,10 @@ final readonly class Options
         if ($processes === null) {
             $numberOfCPUCores = self::getNumberOfCPUCores();
             $processes        = $maxProcesses === null ? $numberOfCPUCores : min($numberOfCPUCores, $maxProcesses);
+        }
+
+        if ($workerAdapter === 'fpm' && $processes < 1) {
+            throw new InvalidArgumentException('The FPM adapter requires at least one worker.');
         }
 
         assert(is_string($options['runner']) && $options['runner'] !== '');
@@ -308,6 +326,8 @@ final readonly class Options
             $totalShards,
             $shardDistribution,
             $shardDistributionSeed,
+            $workerAdapter,
+            $fpmBinary,
         );
     }
 
@@ -322,6 +342,8 @@ final readonly class Options
             ),
 
             // ParaTest options
+            new InputOption('worker-adapter', null, InputOption::VALUE_REQUIRED, 'Worker transport: process or fpm.', 'process'),
+            new InputOption('fpm-binary', null, InputOption::VALUE_REQUIRED, 'PHP-FPM executable for the fpm worker adapter.'),
             new InputOption(
                 'functional',
                 null,

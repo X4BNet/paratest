@@ -85,8 +85,14 @@ final class WrapperRunnerTest extends TestBase
 
         $this->runRunner();
 
-        self::assertCount($expectedPidCount, $this->extractContentFromDirFiles($pidFilesDir));
-        self::assertCount(min([self::NUMBER_OF_CLASS_TESTS_FOR_BATCH_SIZE, $processes]), $this->extractContentFromDirFiles($tokenFilesDir));
+        $pids   = $this->extractContentFromDirFiles($pidFilesDir);
+        $tokens = $this->extractContentFromDirFiles($tokenFilesDir);
+        // Workers start asynchronously: a faster worker can consume another batch
+        // before its peer finishes startup. Exact distribution is not guaranteed.
+        self::assertGreaterThanOrEqual($expectedPidCount, count($pids));
+        self::assertLessThanOrEqual($expectedPidCount + $processes - 1, count($pids));
+        self::assertNotEmpty($tokens);
+        self::assertLessThanOrEqual(min([self::NUMBER_OF_CLASS_TESTS_FOR_BATCH_SIZE, $processes]), count($tokens));
     }
 
     /** @return iterable<array{int,?int,int}> */

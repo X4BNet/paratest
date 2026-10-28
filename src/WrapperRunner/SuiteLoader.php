@@ -59,6 +59,8 @@ final readonly class SuiteLoader
     public int $testCount;
     /** @var list<non-empty-string> */
     public array $tests;
+    /** @var array<non-empty-string, true> Files requiring PHPUnit CLI subprocesses. */
+    public array $cliTests;
 
     public function __construct(
         private Options $options,
@@ -134,10 +136,14 @@ final readonly class SuiteLoader
 
         $this->testCount = count($testSuite);
 
-        $files = [];
-        $tests = [];
+        $files    = [];
+        $tests    = [];
+        $cliTests = [];
         foreach ($this->loadFiles($testSuite) as $file => $test) {
             $files[$file] = null;
+            if ($test instanceof PhptTestCase || $test->runsTestInSeparateProcess() || $this->options->configuration->processIsolation()) {
+                $cliTests[$file] = true;
+            }
 
             if ($test instanceof PhptTestCase) {
                 $tests[] = $file;
@@ -162,7 +168,8 @@ final readonly class SuiteLoader
             }
         }
 
-        $this->tests = $this->options->functional
+        $this->cliTests = $cliTests;
+        $this->tests    = $this->options->functional
             ? $tests
             : array_keys($files);
 

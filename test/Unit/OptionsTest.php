@@ -46,6 +46,31 @@ final class OptionsTest extends TestBase
         self::assertEquals('/path/to/bootstrap', $this->options->phpunitOptions['bootstrap']);
     }
 
+    /** The CLI transport stays the default and FPM options do not reach PHPUnit. */
+    public function testWorkerAdapters(): void
+    {
+        self::assertSame('process', $this->createOptionsFromArgv([])->workerAdapter);
+        $options = $this->createOptionsFromArgv(['--worker-adapter' => 'fpm', '--fpm-binary' => '/usr/sbin/php-fpm']);
+        self::assertSame('fpm', $options->workerAdapter);
+        self::assertSame('/usr/sbin/php-fpm', $options->fpmBinary);
+        self::assertArrayNotHasKey('worker-adapter', $options->phpunitOptions);
+        self::assertArrayNotHasKey('fpm-binary', $options->phpunitOptions);
+    }
+
+    /** Invalid adapter names must fail before discovery or worker startup. */
+    public function testUnknownWorkerAdapter(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->createOptionsFromArgv(['--worker-adapter' => 'unknown']);
+    }
+
+    /** An FPM binary cannot silently be ignored by the process adapter. */
+    public function testFpmBinaryRequiresFpmAdapter(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->createOptionsFromArgv(['--fpm-binary' => '/usr/sbin/php-fpm']);
+    }
+
     public function testAutoProcessesMode(): void
     {
         $options = $this->createOptionsFromArgv(['--processes' => 'auto']);

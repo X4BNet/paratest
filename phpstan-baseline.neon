@@ -259,12 +259,6 @@ parameters:
 			path: src/WrapperRunner/WrapperWorker.php
 
 		-
-			message: '#^Parameter \#3 \$env of class Symfony\\Component\\Process\\Process constructor expects array\<string, string\|Stringable\|false\>\|null, array\{PARATEST\: int, TEST_TOKEN\?\: int, UNIQUE_TEST_TOKEN\?\: non\-empty\-string\} given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/WrapperRunner/WrapperWorker.php
-
-		-
 			message: '#^Call to an undefined method Symfony\\Component\\Console\\Application\:\:add\(\)\.$#'
 			identifier: method.notFound
 			count: 1
